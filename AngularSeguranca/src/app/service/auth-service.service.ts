@@ -1,5 +1,8 @@
-import {Injectable} from '@angular/core';
-import {Router} from "@angular/router";
+import { Injectable } from '@angular/core';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { Router } from '@angular/router';
+import { Observable, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 
 @Injectable({
   providedIn: 'root'
@@ -8,28 +11,33 @@ export class AuthServiceService {
 
   isAutenticado: boolean = this.getAuthStatus();
   isAdmin: boolean = this.getAdminStatus();
+  private baseUrl = 'http://localhost:8081/api';
 
-  constructor(private router: Router) {
-  }
+  constructor(private http: HttpClient, private router: Router) {}
 
-  login(username: string, password: string) {
-    if (username && password) {
-      if (username === 'admin' && password === 'admin') {
-        this.setAuthState(true, true)
-        this.router.navigate(['/dashboard']);
+  login(username: string, password: string): Observable<boolean> {
+    const headers = new HttpHeaders({
+      Authorization: 'Basic ' + btoa(`${username}:${password}`)
+    });
+
+    return this.http.get(`${this.baseUrl}/user`, { headers }).pipe(
+      map(() => {
+        // Sucesso na autenticação
+        this.setAuthState(true, username === 'admin');
         return true;
-      } else if (username === 'user' && password === 'user') {
-        this.setAuthState(true, false)
-        this.router.navigate(['/dashboard']);
-        return true;
-      }
-    }
-    return false;
+      }),
+      catchError((error) => {
+        // Em caso de erro, retorna falso
+        console.error('Login failed:', error);
+        this.setAuthState(false, false);
+        return of(false);
+      })
+    );
   }
 
   logout(): void {
     localStorage.clear();
-    this.setAuthState(false, false)
+    this.setAuthState(false, false);
     this.router.navigate(['/']);
   }
 
@@ -40,7 +48,7 @@ export class AuthServiceService {
     localStorage.setItem('adminStatus', JSON.stringify(adminStatus));
   }
 
-  private getAuthStatus(): boolean {
+  getAuthStatus(): boolean {
     return JSON.parse(localStorage.getItem('authStatus') || 'false');
   }
 
